@@ -213,12 +213,42 @@ class EncoderBlock(nn.Module):
 
 
 class Transformer(nn.Module):
-    def __init__(self,config:ModelConfig):
-        super(Transformer,self).__init__()
+    def __init__(self, config: ModelConfig):
+        super(Transformer, self).__init__()
 
-          # Check if vocab_size is specified
+        # Check if vocab_size is specified
         assert config.vocab_size != -1, "vocab_size must be specified"
 
-        self.config=config
+        self.config = config
         self.vocab_size = config.vocab_size
-        self.n_layers
+        self.n_layers = config.n_layers
+
+        self.embeddings = nn.Embedding(self.vocab_size, config.d_model)
+
+        self.layers = nn.ModuleList([EncoderBlock(config)
+                                    for _ in range(self.n_layers)])
+
+        self.norm = RMSNorm(config, config.norm_eps)
+
+        self.output = nn.Linear(config.d_model, self.vocab_size, bias=False)
+
+    def forward(self, x: torch.Tensor, start_pos: int) -> torch.Tensor:
+        # Input shape: (Batch_Size, SeqLen)
+
+        # Ensure seq_len is 1
+        assert x.shape[1] == 1, "seq_len must be 1"
+
+        # Embedding lookup
+        x = self.embeddings(x)
+
+        # Pass through each transformer encoder block
+        for layer in self.layers:
+            x = layer(x, start_pos)
+
+        # Layer normalization
+        x = self.norm(x)
+
+        # Output prediction
+        x = self.output(x)
+
+        return x  # Return the output
